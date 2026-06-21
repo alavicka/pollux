@@ -17,6 +17,8 @@ Pollux is a fundamentally new class of decoder-only LLMs that abandons continuou
 * **Parameter-Free Thermodynamic Training:** Trained without learning rate schedules, warmup, or weight decay. The network is optimized via endogenous thermodynamic kinetics and Landauer erasure. The only environmental input is `H_floor` — the empirically measured corpus noise floor, analogous to ambient temperature in Carnot theory. All architectural constants are derived from two axioms; no hyperparameter search is required.
 * **Empirical Parity:** At less than 1% of the training data and less than half the active SRAM footprint, Pollux achieves strict fluid-syntax parity (BLiMP) with continuous baselines (Pythia 160M–410M).
 
+[![Hugging Face: Pollux-1152](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Pollux--1152-blue)](https://huggingface.co/alavicka/pollux-1152)
+[![Hugging Face: Pollux-1920](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Pollux--1920-blue)](https://huggingface.co/alavicka/pollux-1920)
 ---
 
 ## The Core Concept
@@ -140,6 +142,13 @@ publish/
 train.py  ──(pollux_10k.pt)──►  pack.py  ──(model.plx)──►  generate.py
                                                          ──►  evaluate.py
 ```
+### Pre-trained Models & Weights
+
+The fully crystallized, 0.76-bit `.plx` deployment artifacts are hosted on Hugging Face. These containers are fully packed and include the immutable H24 codebook indices alongside the global row-wise RMS scales.
+
+* **[Pollux-1152](https://huggingface.co/alavicka/pollux-1152)**: 287M backbone parameters compressed into 27 MB SRAM (142 MB total on-disk including INT8 embeddings).
+* **[Pollux-1920](https://huggingface.co/alavicka/pollux-1920)**: 796M backbone parameters compressed into 76 MB SRAM (265 MB total on-disk including INT8 embeddings).
+
 
 > **Technical Note on Native Inference:**
 > The current reference PyTorch runtime materialises 18-bit indices to FP16 weight tiles via `index_select`, executing via standard `F.linear` / `cuBLAS`. This explicitly validates the zero-shot crystallisation and Iso-Memory theoretical bounds, but does not yet deliver SRAM-bound latency on standard GPUs. True hardware acceleration requires a native C/CUDA/Triton kernel (or dedicated NPU logic) to perform **matrix-free vector scaling**: SRAM lookup of codebook vectors by index, combined with continuous FP16/BF16 activations via scalar–vector multiply–accumulate — eliminating dense $\mathcal{O}(N^2)$ weight-matrix DRAM traffic entirely. This hardware-software isomorphism is detailed in Appendix C of the paper.
