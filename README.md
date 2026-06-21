@@ -27,10 +27,10 @@ Standard quantization (INT8, GPTQ, 1.58-bit) either approximates a pre-trained F
 Instead of scalar ternary quantization ($3^{24} \approx 282 \times 10^9$ states for 24 dimensions), Pollux uses the **196,560 mathematically optimal kissing points** of the Leech lattice $\Lambda_{24}$. This provides the highest possible structural resolution per bit. The origin (zero-vector) is prepended to the codebook, acting as a null attractor for vector ternary logic.
 
 $$
-\underbrace{18\,\text{bits}}_{\text{LUT index}} \;/\; \underbrace{24\,\text{params}}_{\text{atom dim}}
-\;+\;
-\underbrace{16\,\text{bits}}_{\text{FP16 scale}} \;/\; \underbrace{1152\,\text{params}}_{d\text{-dim row}}
-\;=\; 0.750 + 0.0138 \approx \mathbf{0.76\;\text{bits/param}}
+\underbrace{18\ \text{bits}}_{\text{LUT index}} \/\ \underbrace{24\ \text{params}}_{\text{atom dim}}
+\+\
+\underbrace{16\ \text{bits}}_{\text{FP16 scale}} \/\ \underbrace{1152\ \text{params}}_{d\text{-dim row}}
+\=\ 0.750 + 0.0138 \approx \mathbf{0.76\\text{bits/param}}
 $$
 
 ### Fluid vs. Crystallised Intelligence
