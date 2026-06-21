@@ -1,0 +1,25 @@
+# Compiled Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Checkpoints and large model files
+checkpoints/*.pt
+checkpoints/*.bin
+checkpoints/*.plx
+checkpoints/*.safetensors
+
+# Data files (use Git LFS for large binaries if needed)
+data/*.bin
+data/*.npy
+data/*.npz
+
+# Triton kernel cache
+.triton/
+
+# Weights & Biases run artifacts
+wandb/
+
+# Editor / OS noise
+.DS_Store
+*.swp
