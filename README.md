@@ -1,6 +1,6 @@
 # Pollux — 0.76-Bit Native $H_{24}$ Leech-Lattice Transformers
 
-> **Paper:** *0.76 Bits Is All You Need: Vector Ternary Logic via Native $H_{24}$ Leech-Lattice Quantization in LLMs*
+> **Paper:** *0.76 Bits Is All You Need: Vector Ternary Logic via Native H24 Leech-Lattice Quantization in LLMs*
 > Alexander Lavicka · [lavicka@cantab.net](mailto:lavicka@cantab.net) · Preprint 2026
 > WIPO Patent Application No. PCT/AT2026/060108 and Austrian Patent Application No. A65086/2026
 
