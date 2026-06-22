@@ -1,6 +1,6 @@
 # Pollux — 0.76-Bit Native $H_{24}$ Leech-Lattice Transformers
 
-> **Paper:** *0.76 Bits Is All You Need: Vector Ternary Logic via Native H24 Leech-Lattice Quantization in LLMs*
+> **Paper:** [*0.76 Bits Is All You Need: Vector Ternary Logic via Native H24 Leech-Lattice Quantization in LLMs*](https://papers.ssrn.com/abstract=6973978)
 > Alexander Lavicka · [lavicka@cantab.net](mailto:lavicka@cantab.net) · Preprint 2026
 > WIPO Patent Application No. PCT/AT2026/060108 and Austrian Patent Application No. A65086/2026
 
@@ -148,7 +148,7 @@ The fully crystallized, 0.76-bit `.plx` deployment artifacts are hosted on Huggi
 
 * **[Pollux-1152](https://huggingface.co/alavicka/pollux-1152)**: 287M backbone parameters compressed into 27 MB SRAM (142 MB total on-disk including INT8 embeddings).
 * **[Pollux-1920](https://huggingface.co/alavicka/pollux-1920)**: 796M backbone parameters compressed into 76 MB SRAM (265 MB total on-disk including INT8 embeddings).
-
+> *Note on File Sizes: The on-disk footprints (142 MB / 265 MB) reported here and in the paper refer to binary Megabytes (MiB) as calculated by standard OS environments. The Hugging Face file explorer displays these identical files using decimal SI units (149 MB / 278 MB).*
 
 > **Technical Note on Native Inference:**
 > The current reference PyTorch runtime materialises 18-bit indices to FP16 weight tiles via `index_select`, executing via standard `F.linear` / `cuBLAS`. This explicitly validates the zero-shot crystallisation and Iso-Memory theoretical bounds, but does not yet deliver SRAM-bound latency on standard GPUs. True hardware acceleration requires a native C/CUDA/Triton kernel (or dedicated NPU logic) to perform **matrix-free vector scaling**: SRAM lookup of codebook vectors by index, combined with continuous FP16/BF16 activations via scalar–vector multiply–accumulate — eliminating dense $\mathcal{O}(N^2)$ weight-matrix DRAM traffic entirely. This hardware-software isomorphism is detailed in Appendix C of the paper.
@@ -319,6 +319,6 @@ If you use Pollux in your research, please cite:
   author  = {Lavicka, Alexander},
   year    = {2026},
   note    = {Preprint. WIPO Patent Application No. PCT/AT2026/060108 and Austrian Patent Application No. A65086/2026},
-  url     = {https://github.com/alavicka/pollux}
+  url     = {https://papers.ssrn.com/abstract=6973978}
 }
 ```
