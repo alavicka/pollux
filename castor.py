@@ -34,8 +34,8 @@ import torch
 friction_c: float = math.sqrt(2.0)
 
 # System jitter axiom (γ): normalized second moment (NSM) of the Leech-lattice
-# Voronoi cell (G₂₄).  Intrinsic H₂₄ quantization noise — fluctuation-dissipation
-# bound for the thermodynamic optimiser (β₁ = 1 − √γ, β₂ = 1 − γ, Landauer erasure).
+# Voronoi cell (G₂₄).  Intrinsic H₂₄ quantization noise floor — sets the Adam
+# momentum coefficients (β₁ = 1 − √γ, β₂ = 1 − γ) and the dissipative decay rate.
 G24: float = 0.065771
 gamma: float = G24
 

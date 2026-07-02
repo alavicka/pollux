@@ -31,9 +31,9 @@ baselines and factual benchmark scores, see the README or paper).
 
 When to pack
 ------------
-Pack the checkpoint at the crystallisation peak (e.g., ≈10k steps on
-FineWeb-Edu 10B), where the lattice is maximally crystallised and has the
-highest structural accuracy before capacity churn degrades the encoding.
+Pack the checkpoint at the structural convergence plateau (e.g., ≈10k steps on
+FineWeb-Edu 10B), where the lattice has reached its highest structural accuracy
+before capacity churn degrades the encoding.
 
 Usage
 -----

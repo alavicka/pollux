@@ -13,18 +13,18 @@ scalar–vector multiply–accumulate against continuous activations.
 
 Runtime note: this reference script materialises packed 18-bit indices to
 dense FP16 weight matrices via index_select, then calls F.linear (cuBLAS).
-This validates crystallisation and zero-shot benchmarks but does NOT deliver
+This validates structural encoding and zero-shot benchmarks but does NOT deliver
 native SRAM-bound latency. True memory-bandwidth-bound inference requires
 native matrix-free LUT gather–accumulate kernels.
 
 Qualitative generation note: When generating unconditional text, Pollux
-will produce grammatically flawless but factually absurd concepts. This
-structural hallucination is not a bug, but the intended mechanical outcome
-of the H24 Voronoi filter. By rejecting high-entropy factual trivia during
-training, Pollux acts as a stateless cognitive CPU. This restriction is
-designed for zero-interference Retrieval-Augmented Generation (RAG), forcing
-the model to ground its fluid reasoning entirely in the provided external
-prompt context rather than parametric memory.
+will produce grammatically coherent but factually unconstrained output. This
+is the expected architectural outcome of the H24 Voronoi gradient filter:
+by empirically suppressing high-entropy factual gradient signal during
+training, Pollux behaves as a stateless reasoning engine. This property is
+designed for Retrieval-Augmented Generation (RAG), enabling the model to
+ground its reasoning in externally provided context rather than internally
+stored parametric associations.
 
 Usage
 -----

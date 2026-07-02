@@ -3,7 +3,7 @@
 # A copy of this license is available at https://polyformproject.org/licenses/noncommercial/1.0.0/
 # Commercial utilization or hardware integration requires a separate license from the patent holder.
 
-"""Pollux: zero-continuous-weight transformer backbone and thermodynamic estimator.
+"""Pollux: zero-continuous-weight transformer backbone and endogenous kinetic optimiser.
 
 Depends only on castor.py (the axiom layer). Implements the full native H24
 Leech-lattice quantization pipeline: continuous pre-weights (optimiser state
@@ -11,10 +11,10 @@ only) → Voronoi projection → fully discrete structural centres on the
 backbone → 0.76-bit packed inference weights.
 
 This module provides:
-  - Thermodynamic constants: DATASET_NOISE_FLOOR, GEOMETRIC_SLACK, KINEMATIC_LIMIT, CRITICAL_DIM.
-  - State Management: PolluxState for zero-overhead thermodynamic tracking.
+  - Optimiser constants: DATASET_NOISE_FLOOR, GEOMETRIC_SLACK, KINEMATIC_LIMIT, CRITICAL_DIM.
+  - State Management: PolluxState for zero-overhead kinetic state tracking.
   - Architecture: PolluxModel, PolluxH24Linear (training), PackedH24Linear (inference), and peripheral layers.
-  - Optimizer: pollux_step (parameter-free thermodynamic estimator).
+  - Optimizer: pollux_step (parameter-free endogenous kinetic optimiser).
 """
 
 from __future__ import annotations
@@ -128,7 +128,7 @@ def entropy_ceiling(vocab_size: float) -> float:
 
 
 # =============================================================================
-# PolluxState — thermodynamic and update-dynamics field state
+# PolluxState — kinetic and update-dynamics field state
 # =============================================================================
 
 _PHYSICS_SCALAR_NAMES = (
@@ -143,7 +143,7 @@ _PHYSICS_SCALAR_NAMES = (
 
 
 class PolluxState:
-    """Persistent thermodynamic and update-dynamics state bound to a Pollux model.
+    """Persistent kinetic and update-dynamics state bound to a Pollux model.
 
     Scalar fields remain on device as 0-D tensors until explicitly read for
     logging. ``n_embd`` and ``vocab_size`` feed the width-dependent representational
@@ -462,7 +462,7 @@ class PackedH24Linear(nn.Module):
     """SRAM-fusion H24 linear layer: uint8 packed indices + FP16 σ_rms per row.
 
     At inference, materialize() expands indices to dense FP16 weights for
-    standard PyTorch cuBLAS — see README \"Hardware & Inference Limitations\".
+    standard PyTorch cuBLAS — see README \"Limitations & Hardware Constraints\".
     One FP16 scale per weight-matrix row matches the global RMS projection.
     """
 
@@ -569,7 +569,7 @@ class RMSNorm(nn.Module):
     Operates on the final dimension; 1D gain tensors are treated as semantic
     scalars in pollux_step (no width-dependent representational stability scaling).
     Gains manage residual-stream amplitude so H24 pre-weights encode directional
-    geometry without fighting Landauer erasure.
+    geometry without being dominated by the dissipative decay term.
     """
 
     def __init__(self, dim: int, eps: float = 1e-8) -> None:
@@ -764,7 +764,7 @@ def pollux_step(
     *,
     ce_mean: float | torch.Tensor,
 ) -> None:
-    """Execute one Pollux optimisation step via the thermodynamic estimator.
+    """Execute one Pollux optimisation step via the endogenous kinetic estimator.
 
     No architectural hyperparameters; requires DATASET_NOISE_FLOOR (H_floor) as
     an empirically measured environmental boundary condition for the corpus.
@@ -785,7 +785,7 @@ def pollux_step(
     width_inertia = 1.0 + C * math.log(d / ((float(H24_DIM) * C) ** 2))
     H_MAX = entropy_ceiling(float(state.vocab_size.item()))
 
-    # --- Macroscopic thermodynamics ---
+    # --- Macroscopic heat (informational heuristic) ---
     H_FLOOR = float(DATASET_NOISE_FLOOR)
     ce_mean_t = (
         ce_mean
@@ -864,9 +864,9 @@ def pollux_step(
                 adam_h24 * torch.clamp(speed_cap / (step_norm + NUMERICAL_EPSILON), max=1.0)
             ).reshape_as(adam_step)
 
-            # Jitter-squared dissipation: γ² modulates latent cooling with heat.
+            # Jitter-squared dissipation: γ² modulates dissipative weight decay with heat.
             # The Snap offset supplies minimum gradient variance for gradients to
-            # overcome discrete lattice gaps without thermodynamic freezing.
+            # overcome discrete lattice gaps without topological lock.
             weight_decay_factor = 1.0 - (heat_on_p * (float(gamma) ** 2))
             latent.mul_(weight_decay_factor)
             latent.add_(adam_step)
@@ -891,7 +891,7 @@ def pollux_step(
             latent.clamp_(1.0 - slack, 1.0 + slack)
             p.data.copy_(latent)
 
-        # Aggregate global thermodynamic observables (device-resident, no .item() in loop).
+        # Aggregate global kinetic observables (device-resident, no .item() in loop).
         adam_energy_sum = adam_energy_sum + torch.linalg.vector_norm(
             adam_step.view(-1), ord=2
         ).to(dtype=dt)

@@ -5,15 +5,15 @@
 # Commercial utilization or hardware integration requires a separate license from the patent holder.
 """Pollux training entry point.
 
-Executes least-action crystallization on the 24D Leech lattice with local 
-FineWeb-Edu memmap ingestion, the endogenous thermodynamic estimator (pollux_step), 
+Executes native H24 Leech-lattice quantization-aware training with local
+FineWeb-Edu memmap ingestion, the endogenous kinetic optimiser (pollux_step),
 and optional Weights & Biases telemetry.
 
-The thermodynamic estimator (pollux_step) has no architectural hyperparameters
+The kinetic optimiser (pollux_step) has no architectural hyperparameters
 and requires no learning-rate schedule, weight decay, gradient clipping, or
 warmup. It requires exactly one empirically measured environmental boundary condition:
-H_floor (DATASET_NOISE_FLOOR in pollux.py) — the cross-entropy convergence
-floor of the training corpus, analogous to ambient temperature in Carnot theory.
+H_floor (DATASET_NOISE_FLOOR in pollux.py) — the irreducible cross-entropy
+convergence floor of the training corpus, measured from a continuous FP16 baseline.
 
 Usage:
     python train.py [--wandboff] [--resume PATH] [--auto-resume]
@@ -305,7 +305,7 @@ def _train_loop(
         physics = ckpt.get("physics_state_dict")
         if physics is None:
             raise ValueError(
-                "Checkpoint is missing physics_state_dict (Adam-momentum and thermodynamic state)."
+                "Checkpoint is missing physics_state_dict (Adam-momentum and kinetic state)."
             )
         state.load_state_dict(physics)
         state.grad_accum_steps.copy_(
