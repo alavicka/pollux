@@ -264,7 +264,6 @@ Requires `datasets`, `transformers`, `numpy`, and `tqdm` (in addition to the cor
 python prepare_fineweb.py
 
 # Train Pollux-1152 (1152-dim, 18 layers, 48 heads — default pollux.py config)
-# Targets the 10k structural convergence plateau on a single RTX 5090 / ~6 hours
 python train.py \
     --target-tokens 9_953_989_333 \
     --wandboff   # remove to enable W&B logging
