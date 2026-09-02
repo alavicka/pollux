@@ -28,10 +28,10 @@ Scalar QAT (e.g. 1.58-bit ternary networks) applies a one-dimensional grid that 
 Pollux instead trains **at its final quantization resolution from step zero**: there is no continuous model being approximated. Rather than scalar ternary quantization ($3^{24} \approx 282 \times 10^9$ combinatorial states per 24-dim atom), Pollux addresses the same 24-dimensional atom with the **196,560 kissing points of the Leech lattice $\Lambda_{24}$** — the provably densest sphere packing and optimal vector quantizer in 24 dimensions (Conway & Sloane) — plus a prepended zero vector serving as the erasure/null attractor.
 
 $$
-\underbrace{18\,\text{bits}}_{\text{LUT index}} \;/\; \underbrace{24\,\text{params}}_{\text{atom dim}}
-\;+\;
-\underbrace{16\,\text{bits}}_{\text{FP16 scale}} \;/\; \underbrace{1152\,\text{params}}_{d\text{-dim row}}
-\;=\; 0.750 + 0.0138 \approx \mathbf{0.76\;\text{bits/param}}
+\underbrace{18\\text{bits}}_{\text{LUT index}} \/\ \underbrace{24\\text{params}}_{\text{atom dim}}
+\+\
+\underbrace{16\\text{bits}}_{\text{FP16 scale}} \/\ \underbrace{1152\\text{params}}_{d\text{-dim row}}
+\=\ 0.750 + 0.0138 \approx \mathbf{0.76\\text{bits/param}}
 $$
 
 (For wider models, e.g. $d=1920$, the scale overhead drops to ≈0.0083 bits/param, asymptotically approaching the 0.75-bit geometric floor. 0.76 bits is used throughout as the conservative reference figure.)
@@ -65,7 +65,7 @@ Pollux models are evaluated under a **Matched Informational Footprint** protocol
 
 At comparable early-training exposure, Pollux-1152 and Pollux-1920 reach BLiMP within roughly a point of the size-matched Pythia checkpoint while using a smaller total footprint (38–63% smaller across the two pairs). At Pythia-160M's 300B-token asymptote, Pollux-1920's BLiMP (73.0%) is still comparable (73.1%) — but Pythia's SciQ continues climbing to 72.3–82.4% over that budget while Pollux's factual scores stay near their 10k-step plateau. **Whether that plateau is a hard topological ceiling or just a finite-scale delay that would eventually be breached by enough tokens ("macroscopic entropic leakage") is an open question the paper does not resolve** (Section 4.6).
 
-### Thermodynamic capacity curve
+### Training capacity curve
 Both configurations show a steep initial loss reduction followed by a plateau; structural (BLiMP) and factual (SciQ/HellaSwag/PIQA) benchmarks stop moving by more than ~1% beyond the 10,000-step ("crystallisation peak") checkpoint, out to the 15,000-step horizon actually tested (~3.9B tokens):
 
 | Checkpoint | Tokens | BLiMP (structural) | SciQ (factual) | HellaSwag (factual) | PIQA (factual) |
