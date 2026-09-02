@@ -1,57 +1,58 @@
-# Pollux — 0.76-Bit Native $H_{24}$ Leech-Lattice Transformers
+# Pollux — Native $\Lambda_{24}$ Leech-Lattice Transformers
 
-> **Paper:** [*0.76 Bits Is All You Need: Vector Ternary Logic via Native H24 Leech-Lattice Quantization in LLMs*](https://papers.ssrn.com/abstract=6973978)
-> Alexander Lavicka · [lavicka@cantab.net](mailto:lavicka@cantab.net) · Preprint 2026
-> WIPO Patent Application No. PCT/AT2026/060108 and Austrian Patent Application No. A65086/2026
+> **Paper:** *Artificial Neural Networks as Discrete Complex Systems: Native Vector-Ternary Training via the Leech Lattice $\Lambda_{24}$*
+> Alexander Lavicka · [lavicka@cantab.net](mailto:lavicka@cantab.net)
+> Accepted for publication in *Complex & Intelligent Systems* (02/09/2026). This repository accompanies the author's accepted version; the final published version may differ due to copyediting and typesetting.
+> Patent: WIPO Application No. PCT/AT2026/060108 and Austrian Patent Application No. A65086/2026 (implementation/software-architecture claims only — see [Licensing](#licensing) below).
+> Checkpoints & code archive: Zenodo [10.5281/zenodo.22254791](https://doi.org/10.5281/zenodo.22254791)
 
 ---
 
 ## At a Glance
 
-Pollux is a fundamentally new class of decoder-only LLMs that abandons continuous floating-point weights in the transformer backbone to overcome the von Neumann memory wall. 
+Pollux is a research proof-of-concept for training decoder-only LLMs with a transformer backbone that is projected onto the $\Lambda_{24}$ Leech lattice *from the first gradient step*, rather than quantized after the fact. The paper's central question is not whether this beats continuous baselines on a leaderboard, but whether stable training convergence is achievable at all under a **0.76-bit code rate imposed from initialization** — and the empirical answer is yes.
 
-* **0.76 Bits per Parameter:** By mapping the neural parameter manifold natively onto the $H_{24}$ Leech lattice (the densest sphere packing in 24D), the backbone is compressed to extreme sub-1-bit levels.
-* **Zero-Continuous-Weight Backbone:** Observable layers carry no continuous structural weights—only discrete 18-bit codebook indices and a single global FP16 scale per row.
-* **SRAM-Resident Edge AI:** A 1B-class transformer backbone (Pollux-1920) is compressed into just **76 MB of SRAM**, converting inference from a memory-bandwidth-bound to a compute-bound operation.
-* **A Stateless Reasoning Engine for RAG:** Pollux architecturally decouples fluid intelligence (syntax) from crystallised intelligence (factual trivia). Through a geometric Voronoi gradient coherence filter, it empirically suppresses high-entropy factual gradient signal, structurally reducing the parametric knowledge conflicts that contribute to contextual interference in RAG pipelines.
-* **Endogenous Kinetic Optimization:** Trained without learning rate schedules, warmup, or weight decay. The network is optimized via information-theoretic kinetics and heat-modulated dissipative weight decay. The only environmental input is `H_floor` — the empirically measured corpus noise floor. All optimiser constants are derived closed-form from two geometric axioms; no hyperparameter search is required.
-* **Empirical Parity:** At less than 1% of the training data and less than half the active SRAM footprint, Pollux achieves strict fluid-syntax parity (BLiMP) with continuous baselines (Pythia 160M–410M).
+* **0.76 Bits per Parameter:** The transformer backbone (Q/K/V/O projections and MLP layers) is addressed by an 18-bit index into the 196,561-entry $\Lambda_{24}$ codebook (196,560 kissing points + a prepended zero-vector erasure/null attractor), plus a small per-row FP16 RMS scale — 0.75 + ~0.01–0.014 bits/parameter depending on width.
+* **Zero-Continuous-Weight Backbone (in principle):** The *observable* backbone weights at any training or inference step are always exact elements of the fixed $\Lambda_{24}$ codebook — never arbitrary floats. Continuous "shadow weights" exist only inside the optimizer as a latent buffer; see [Hardware & Inference Limitations](#hardware--inference-limitations) for what this does and does not mean for today's reference runtime.
+* **Parameter-Free Endogenous Kinetics:** No learning-rate schedule, warmup, gradient-clipping threshold, or weight-decay hyperparameter is tuned. Every optimizer constant (momentum, decay, step size, width-inertia) is derived directly from two geometric invariants of $\Lambda_{24}$ — the Voronoi-cell variance $\gamma = G_{24} \approx 0.065771$ and the covering-to-packing ratio $C = \sqrt{2}$. The one required external input is `H_floor`, an empirically measured corpus noise floor (used only as a normalization reference for the training "heat" signal — an information-theoretic analogy, not a literal thermodynamic quantity).
+* **A structural/factual asymmetry, not a hallucination cure:** The Voronoi rate-distortion filter is hypothesized (and, at this scale, empirically observed) to bias gradient accumulation toward coherent structural syntax over idiosyncratic factual detail. This **delays and bounds** factual accumulation relative to a continuous baseline at matched token budgets — it does **not** stop the model from generating confident, fluent, and sometimes factually wrong text (see Appendix A of the paper and the qualitative examples below). The design rationale is to pair a syntax-focused core with an external, auditable retrieval store, rather than to eliminate hallucination outright.
+* **Small-scale empirical parity:** At the 10k-step ("crystallisation peak") checkpoints, Pollux-1152 and Pollux-1920 reach BLiMP scores comparable to continuously-trained Pythia-160M/410M at similar early token budgets, at a smaller total on-disk footprint. This has been observed at two model scales on one corpus with a single training run each (n = 1) — see [Limitations](#limitations).
 
-[![Hugging Face: Pollux-1152](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Pollux--1152-blue)](https://huggingface.co/alavicka/pollux-1152)
-[![Hugging Face: Pollux-1920](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Pollux--1920-blue)](https://huggingface.co/alavicka/pollux-1920)
 ---
 
 ## The Core Concept
 
 ### Why native vector quantization, not post-training compression?
-Standard quantization (INT8, GPTQ, 1.58-bit) either approximates a pre-trained FP16 model after the fact (destroying capacity) or relies on one-dimensional scalar rounding that wastes combinatorial state-space. Pollux is trained **at its final quantization resolution from step zero**. There is no continuous baseline to approximate.
+Scalar QAT (e.g. 1.58-bit ternary networks) applies a one-dimensional grid that ignores the geometry of the parameter space and pays an explicit 0.58-bit premium ($\log_2 3 \approx 1.58$ bits) just to represent a reject/erasure symbol. Post-hoc lattice quantization (e.g. Leech-lattice PTQ methods) is applied only after continuous pre-training, so it approximates — and partially distorts — a model that was never optimized under the constraint.
 
-Instead of scalar ternary quantization ($3^{24} \approx 282 \times 10^9$ states for 24 dimensions), Pollux uses the **196,560 mathematically optimal kissing points** of the Leech lattice $\Lambda_{24}$. This provides the highest possible structural resolution per bit. The origin (zero-vector) is prepended to the codebook, acting as a null attractor for vector ternary logic.
+Pollux instead trains **at its final quantization resolution from step zero**: there is no continuous model being approximated. Rather than scalar ternary quantization ($3^{24} \approx 282 \times 10^9$ combinatorial states per 24-dim atom), Pollux addresses the same 24-dimensional atom with the **196,560 kissing points of the Leech lattice $\Lambda_{24}$** — the provably densest sphere packing and optimal vector quantizer in 24 dimensions (Conway & Sloane) — plus a prepended zero vector serving as the erasure/null attractor.
 
 $$
-\underbrace{18\ \text{bits}}_{\text{LUT index}} \/\ \underbrace{24\ \text{params}}_{\text{atom dim}}
-\+\
-\underbrace{16\ \text{bits}}_{\text{FP16 scale}} \/\ \underbrace{1152\ \text{params}}_{d\text{-dim row}}
-\=\ 0.750 + 0.0138 \approx \mathbf{0.76\\text{bits/param}}
+\underbrace{18\,\text{bits}}_{\text{LUT index}} \;/\; \underbrace{24\,\text{params}}_{\text{atom dim}}
+\;+\;
+\underbrace{16\,\text{bits}}_{\text{FP16 scale}} \;/\; \underbrace{1152\,\text{params}}_{d\text{-dim row}}
+\;=\; 0.750 + 0.0138 \approx \mathbf{0.76\;\text{bits/param}}
 $$
 
-### Fluid vs. Crystallised Intelligence
-Following Cattell's psychological framework, we distinguish *fluid intelligence* ($g_f$: structural syntax) from *crystallised intelligence* ($g_c$: factual associations). The **$C=\sqrt{2}$ Voronoi deep-hole barrier** of the lattice acts as a geometric gradient coherence filter:
-* **Fluid intelligence (structural syntax):** Coherent, recurring syntactic rules accumulate directed update momentum across batches, cross the Voronoi barrier, and stabilize into $H_{24}$ kissing points.
-* **Crystallised intelligence (factual trivia):** Incoherent, high-entropy factual gradient signal lacks the cross-batch directionality to cross the threshold and is absorbed by the zero-potential null attractor. Pollux therefore empirically suppresses factual scores — bounded by high-frequency leakage for ubiquitous facts that generate sufficient coherent gradient over billions of tokens.
+(For wider models, e.g. $d=1920$, the scale overhead drops to ≈0.0083 bits/param, asymptotically approaching the 0.75-bit geometric floor. 0.76 bits is used throughout as the conservative reference figure.)
 
-This architectural property makes Pollux well-suited as **a stateless reasoning engine for Retrieval-Augmented Generation (Macro-RAG)**: its geometrically constrained parametric encoding reduces interference from internally stored associations, enabling the model to ground its reasoning in externally provided context.
+### Fluid vs. crystallised intelligence — a filtering hypothesis, tested at small scale
+The paper frames SGD noise as an approximately isotropic (AWGN) component superimposed on a directionally coherent structural signal — a standard modeling assumption in the SGD-as-diffusion literature, adopted here as a theoretical motivation rather than something directly measured in these training runs. Under that framing, the $C=\sqrt{2}$ Voronoi deep-hole barrier of $\Lambda_{24}$ acts as a geometric high-pass filter on gradient updates:
+
+* **Fluid intelligence (structural syntax):** Gradients that are directionally coherent across many batches accumulate enough momentum to cross the barrier and commit an atom to a new kissing point.
+* **Crystallised intelligence (factual content):** Gradients from sparse, idiosyncratic examples tend to cancel across batches and are pulled back toward the zero-vector erasure attractor by the geometric decay term — but ubiquitous, high-frequency facts can still generate coherent enough gradients to leak through over enough tokens ("kinetic prioritization," not an absolute firewall).
+
+Empirically (Section 4 of the paper), both Pollux configurations show a **bimodal per-task accuracy distribution** on the 67 BLiMP sub-tasks — a compressed "noise zone" (45–55% accuracy) and a larger share of tasks pushed into the statistically-significant "acquired" zone (>55%) than the continuous Pythia baselines at comparable token budgets — consistent with (but not conclusive proof of) the predicted Voronoi-barrier filtering mechanism. See Table 4 in the paper for the full zone breakdown.
+
+This motivates describing Pollux as a candidate **"stateless cognitive architecture"**: a lattice-constrained core intended for fluid syntactic processing, designed to be paired with an external, auditable factual store (retrieval) rather than to serve as both processor and memory. The qualitative generations in Appendix A of the paper illustrate the failure mode this design is meant to address: both checkpoints produce structurally fluent, grammatically well-formed text that regularly invents plausible-sounding but factually incorrect content (e.g. confabulated terms like "endolymphadoproteins"). That confident confabulation is *expected* under this framing, not eliminated by it — grounding still has to come from outside the model.
 
 ---
 
 ## Empirical Results
 
-Pollux models are evaluated under a strict **Iso-Memory paradigm**: the active backbone SRAM footprint—not raw parameter count—is the execution-critical metric during autoregressive generation. *(Note: the Iso-Memory criterion isolates memory-bandwidth footprint under the targeted native LUT runtime. Under the current FP16 reference materialisation, FLOPs per token scale with backbone parameter count and are not matched between Pollux and Pythia baselines.)*
+Pollux models are evaluated under a **Matched Informational Footprint** protocol: since a $\Lambda_{24}$ parameter carries 0.76 bits versus up to 16 bits for a continuous Pythia parameter, raw parameter counts are not directly comparable, so results are reported by total serialized on-disk footprint. Pythia ([EleutherAI Pythia suite](https://github.com/EleutherAI/pythia)) is used as an **external reference**, not a matched control: it is trained on a different corpus (The Pile vs. our FineWeb-Edu 10B subset) with a different tokenizer. A same-corpus, same-tokenizer baseline is an open item for future work.
 
-### Iso-Memory Evaluation
-The three-way tension between minimizing SRAM, maximizing fluid syntax (BLiMP), and suppressing factual accumulation (SciQ/HellaSwag) is a multi-objective constraint for continuous architectures. Pollux-1920 simultaneously achieves competitive BLiMP scores, a 76 MB backbone SRAM footprint, and empirically reduced factual accumulation — though the long-tail factual suppression properties at much larger scales remain to be evaluated.
-
-| Model | Training tokens | BLiMP (Syntax) | SciQ (Facts) | HellaSwag (Facts) | PIQA (Facts) | Backbone SRAM | Total disk |
+| Model | Training tokens | BLiMP (structural) | SciQ (factual) | HellaSwag (factual) | PIQA (factual) | Backbone SRAM | Total on-disk |
 |---|---|---|---|---|---|---|---|
 | **Pollux-1152** | 2.6B (step 10k) | **69.9%** | 50.3% | 26.4% | 57.7% | **27 MB** | **142 MB** |
 | **Pollux-1920** | 2.6B (step 10k) | **73.0%** | 60.7% | 27.2% | 59.8% | **76 MB** | **265 MB** |
@@ -60,38 +61,54 @@ The three-way tension between minimizing SRAM, maximizing fluid syntax (BLiMP), 
 | Pythia-160M @ Asymptotic | 300B | 73.1% | 72.3% | 29.1% | 61.9% | 162 MB | 247 MB |
 | Pythia-410M @ Asymptotic | 300B | 81.9% | 82.4% | 34.5% | 67.2% | 577 MB | 707 MB |
 
-> *(Random-chance baselines: BLiMP (2-way) = 50.0%; HellaSwag / SciQ (4-way) ≈ 25%; PIQA (2-way) ≈ 50%. All Pollux scores measured on packed `.plx` deployment artifacts.)*
+> Random-chance baselines: BLiMP (2-way) = 50.0%; HellaSwag / SciQ (4-way) ≈ 25%; PIQA (2-way) ≈ 50%. HellaSwag and PIQA are near-random for every configuration in this table (best HellaSwag anywhere: 34.5%) and are retained only for baseline continuity; SciQ carries most of the factual-accumulation comparison. All Pollux scores are measured on the packed `.plx` deployment artifact, and Pythia's Comparable-Early-Training row processed ~38% more tokens than Pollux at the same checkpoint (4.2B vs 2.6B) — this is labeled a comparable phase for sample-efficiency framing, not an exact data match.
 
-### Empirical Capacity Curve & Representational Stasis
-At 10k steps (~2.6B tokens), the network reaches its **structural convergence plateau**. Beyond this point, the $H_{24}$ topological binding energy locks syntax in place, entering a phase of **Representational Stasis**: BLiMP shifts by ≤ 0.5% and all factual benchmarks shift by ≤ 1.0% over ≥ 1.3B additional tokens. Capacity churn ceases; the model neither gains new factual associations nor loses established syntactic structure.
+At comparable early-training exposure, Pollux-1152 and Pollux-1920 reach BLiMP within roughly a point of the size-matched Pythia checkpoint while using a smaller total footprint (38–63% smaller across the two pairs). At Pythia-160M's 300B-token asymptote, Pollux-1920's BLiMP (73.0%) is still comparable (73.1%) — but Pythia's SciQ continues climbing to 72.3–82.4% over that budget while Pollux's factual scores stay near their 10k-step plateau. **Whether that plateau is a hard topological ceiling or just a finite-scale delay that would eventually be breached by enough tokens ("macroscopic entropic leakage") is an open question the paper does not resolve** (Section 4.6).
 
-| Checkpoint | Tokens | BLiMP (Syntax) | SciQ (Facts) | HellaSwag (Facts) | PIQA (Facts) |
+### Thermodynamic capacity curve
+Both configurations show a steep initial loss reduction followed by a plateau; structural (BLiMP) and factual (SciQ/HellaSwag/PIQA) benchmarks stop moving by more than ~1% beyond the 10,000-step ("crystallisation peak") checkpoint, out to the 15,000-step horizon actually tested (~3.9B tokens):
+
+| Checkpoint | Tokens | BLiMP (structural) | SciQ (factual) | HellaSwag (factual) | PIQA (factual) |
 |---|---|---|---|---|---|
 | **Pollux-1152** | | | | | |
 | 5k steps | ~1.3B | 67.5% | 46.5% | 26.6% | 55.7% |
-| **10k steps** ⬅ *Structural convergence plateau* | ~2.6B | **69.9%** | **50.3%** | **26.4%** | **57.7%** |
+| **10k steps** ⬅ *evaluation checkpoint* | ~2.6B | **69.9%** | **50.3%** | **26.4%** | **57.7%** |
 | 15k steps | ~3.9B | 69.9% | 48.4% | 26.6% | 57.7% |
 | **Pollux-1920** | | | | | |
 | 5k steps | ~1.3B | 72.9% | 56.6% | 26.9% | 58.4% |
-| **10k steps** ⬅ *Structural convergence plateau* | ~2.6B | **73.0%** | **60.7%** | **27.2%** | **59.8%** |
+| **10k steps** ⬅ *evaluation checkpoint* | ~2.6B | **73.0%** | **60.7%** | **27.2%** | **59.8%** |
 | 15k steps | ~3.9B | 73.2% | 61.7% | 27.3% | 60.1% |
 
-### Topological Robustness (Lossless Serialization)
-The `.plx` serialization mathematically compresses the network to 0.76 bits/param. Compared to the raw continuous `.pt` checkpoint, the maximum deviation across all BLiMP tasks is **0.2 pp** (and 0.01% aggregate mean difference)—engineering confirmation that the global row-scale quantization is practically lossless.
+The 10,000-step checkpoint is used for all comparative evaluations because neither model improved by more than 1% on any benchmark aggregate beyond it, within the training horizon tested (15k steps / ~3.9B tokens). This is not evidence of a plateau beyond that horizon.
+
+### Held-out validation
+Held-out validation loss (a separate FineWeb-Edu 10B subset, disjoint from the training shard) tracks training loss throughout for both configurations with no divergence — consistent with the model generalizing rather than memorizing the training set at this scale, though this has only been checked with a single held-out split per model, not cross-validated.
 
 ---
 
-## Limitations & Hardware Constraints
+## Limitations
 
-Pollux is a **functional reference implementation for research**. The following constraints apply to anyone deploying or extending the codebase:
+These are carried over directly from the paper's Limitations section (4.6) and apply to everything in this repository, not just the paper text:
 
-**Packed storage vs. PyTorch runtime:** While the packed `.plx` representation fits entirely in on-chip memory (~27 MB backbone for Pollux-1152), the **current reference PyTorch path materialises dense FP16 weight matrices** at inference time (`PackedH24Linear.materialize()`) for standard `cuBLAS` compatibility. This validates structural encoding and zero-shot benchmarks but **does not** deliver native SRAM-bound latency. **Native matrix-free LUT gather–accumulate kernels** (read index → fetch codebook vector → accumulate $\sigma_{\mathrm{rms}} \cdot c$) are required for the true compute-bound speedup.
+* **Single-trajectory runs.** Each configuration (Pollux-1152, Pollux-1920) reflects one training run (n = 1). No multi-seed variance or confidence intervals are reported; agreement across the two architectural scales is a cross-scale check, not a multi-seed robustness check.
+* **No matched-footprint scalar-QAT baseline.** There is no same-corpus BitNet-b1.58-style scalar ternary baseline in this repository or the paper. Without it, it is not possible to fully separate effects specific to $\Lambda_{24}$ geometry from the general effect of extreme sub-1-bit quantization on any architecture.
+* **No same-corpus/tokenizer Pythia baseline.** The Pythia comparison uses a different corpus (The Pile) and tokenizer than Pollux (FineWeb-Edu 10B, GPT-2 BPE via `tiktoken`), so it is an external reference point, not a controlled ablation.
+* **Un-ablated geometric ansatz choices.** The width-inertia factor $\eta_d$ and the momentum coefficients $\beta_1,\beta_2$ (derived from $\gamma$ and $C$) are motivated by, but not uniquely derived from, the lattice geometry, and have not been empirically compared against alternatives (e.g. $\eta_d \equiv 1$, standard Adam defaults) on this architecture. The untied-embeddings design is similarly motivated but not empirically compared against a tied-weight configuration.
+* **Open question on the factual plateau.** It is unresolved whether the observed bound on factual accumulation is an unconditional property of the $C=\sqrt{2}$ barrier at any scale, or a finite-scale effect that would eventually be overcome ("macroscopic entropic leakage") with a much larger token budget.
+* **Small model / data scale.** Everything here is at the 404M–991M total parameter scale on a 10B-token corpus subset. Broad-coverage benchmarks (MMLU, GPQA) were judged out of scope at this scale; results should not be extrapolated to production-scale models without further validation.
+* **Not a demonstrated hardware speedup.** See [Hardware & Inference Limitations](#hardware--inference-limitations) — the current reference runtime does not realize the memory-bandwidth benefit of the 0.76-bit code rate.
 
-**Edge CPU Viability:** Standard GPUs penalise sub-byte combinatorial addressing. However, modern CPUs feature large L3 caches (8–32 MB) capable of holding the entire 9 MB $H_{24}$ codebook, executing the index-routing pipeline efficiently. By compressing a 1B-class model to a strict **265 MB on-disk footprint**, Pollux targets reasoning for IoT/Edge hardware where continuous models trigger Out-Of-Memory failures.
+---
 
-**Architectural Strictness:** Custom configurations must satisfy **`n_embd % 24 == 0`**. Every quantized linear `in_features` must be cleanly divisible by 24 for proper Leech lattice atom tiling.
+## Hardware & Inference Limitations
 
-**Absence of a Scalar QAT Control Baseline:** The current evaluation does not include an Iso-Memory comparison against a scalar quantization-aware training baseline (e.g., BitNet b1.58) trained on the same corpus. The $H_{24}$ Voronoi geometry provides a theoretically grounded mechanism for factual suppression via the $\sqrt{2}$ covering-radius barrier. However, without a matched scalar QAT control, isolating how much of the observed factual suppression is uniquely attributable to the $H_{24}$ lattice geometry — versus the general effect of extreme sub-1-bit quantization — remains an open empirical question and the most important next comparison for future work.
+Pollux is a **functional reference implementation for research**, not an optimized production runtime. The following constraints apply to anyone deploying or extending the codebase:
+
+**Packed storage vs. PyTorch runtime:** While the packed `.plx` representation fits entirely in on-chip memory (~27 MB backbone for Pollux-1152), the **current reference PyTorch path materialises dense FP16 weight matrices** at inference time (`PackedH24Linear.materialize()`) for standard `cuBLAS` compatibility. This validates the crystallisation and Iso-Memory *storage* claims and the zero-shot benchmark numbers above, but it does **not** currently deliver SRAM-bound latency or reduced FLOPs — under the present materialisation, inference compute scales with backbone parameter count like any dense model, and it is not matched between Pollux and the Pythia baselines. **Native matrix-free LUT gather–accumulate kernels** (read index → fetch codebook vector → accumulate $\sigma_{\mathrm{rms}} \cdot c$) are required to realize the intended compute/bandwidth benefit, and are future work, not part of this release.
+
+**Edge CPU viability:** Modern CPUs feature large L3 caches (8–32 MB) capable of holding the entire ~9 MB $\Lambda_{24}$ codebook, which is favorable for an index-routing pipeline in principle. By compressing a ~1B-parameter model to a 265 MB on-disk footprint, Pollux is intended to make edge/IoT deployment more tractable where continuous models would trigger out-of-memory failures — but this repository does not yet include an optimized CPU inference kernel to validate that claim end-to-end.
+
+**Architectural strictness:** Custom configurations must satisfy `n_embd % 24 == 0`. Every quantized linear `in_features` must be cleanly divisible by 24 for proper Leech-lattice atom tiling (see Appendix B of the paper for the full set of dimensional/padding constraints, including the 128-divisible vocabulary padding used purely for GPU memory-access alignment).
 
 ---
 
@@ -105,7 +122,7 @@ publish/
 │                           #   Leaf node — imports nothing from this project.
 │
 ├── pollux.py               # Zero-continuous-weight architecture +
-│                           #   parameter-free kinetic optimiser
+│                           #   parameter-free endogenous-kinetics estimator
 │                           #   (pollux_step). Depends only on castor.
 │                           #   Contains both training (PolluxH24Linear) and
 │                           #   inference (PackedH24Linear) layer classes.
@@ -114,13 +131,20 @@ publish/
 │                           #   calls pollux_step, writes .pt checkpoints.
 │                           #   No LR schedule, no weight decay, no warmup.
 │
+├── validate.py              # Computes held-out cross-entropy for a Pollux
+│                           #   training checkpoint (.pt) against a reserved,
+│                           #   disjoint FineWeb-Edu 10B split. Used to produce
+│                           #   the validation-loss curve reported in the paper
+│                           #   (Fig. 1) and to check for train/val divergence
+│                           #   (a basic memorization check) at any checkpoint.
+│
 ├── prepare_fineweb.py      # Downloads FineWeb-Edu 10B, tokenizes with GPT-2,
 │                           #   writes uint16 memmap to data/fineweb_10b.bin.
 │
 ├── pack.py                 # Checkpoint → .plx converter.
 │                           #   Quantizes H24 layers to 18-bit LUT indices +
 │                           #   FP16 σ_rms per row, INT8-quantized embeddings.
-│                           #   Pack at the 10k structural convergence plateau checkpoint.
+│                           #   Pack at the 10k crystallisation peak checkpoint.
 │
 ├── generate.py             # Text generation from .plx or .pt files.
 │                           #   .plx: index_select materialisation + F.linear;
@@ -138,22 +162,16 @@ publish/
     └── pollux_step_*.pt    #   train.py every 2.5k optimizer steps)
 ```
 
-### Inference pipeline
+### Inference & validation pipeline
 
 ```
 train.py  ──(pollux_10k.pt)──►  pack.py  ──(model.plx)──►  generate.py
-                                                         ──►  evaluate.py
+                              │                          ──►  evaluate.py
+                              └──(pollux_step_*.pt)──►  validate.py  (held-out CE)
 ```
-### Pre-trained Models & Weights
-
-The fully packed, 0.76-bit `.plx` deployment artifacts are hosted on Hugging Face. These containers are fully packed and include the immutable H24 codebook indices alongside the global row-wise RMS scales.
-
-* **[Pollux-1152](https://huggingface.co/alavicka/pollux-1152)**: 287M backbone parameters compressed into 27 MB SRAM (142 MB total on-disk including INT8 embeddings).
-* **[Pollux-1920](https://huggingface.co/alavicka/pollux-1920)**: 796M backbone parameters compressed into 76 MB SRAM (265 MB total on-disk including INT8 embeddings).
-> *Note on File Sizes: The on-disk footprints (142 MB / 265 MB) reported here and in the paper refer to binary Megabytes (MiB) as calculated by standard OS environments. The Hugging Face file explorer displays these identical files using decimal SI units (149 MB / 278 MB).*
 
 > **Technical Note on Native Inference:**
-> The current reference PyTorch runtime materialises 18-bit indices to FP16 weight tiles via `index_select`, executing via standard `F.linear` / `cuBLAS`. This explicitly validates the zero-shot crystallisation and Iso-Memory theoretical bounds, but does not yet deliver SRAM-bound latency on standard GPUs. True hardware acceleration requires a native C/CUDA/Triton kernel (or dedicated NPU logic) to perform **matrix-free vector scaling**: SRAM lookup of codebook vectors by index, combined with continuous FP16/BF16 activations via scalar–vector multiply–accumulate — eliminating dense $\mathcal{O}(N^2)$ weight-matrix DRAM traffic entirely. This hardware-software isomorphism is detailed in Appendix C of the paper.
+> The current reference PyTorch runtime materialises 18-bit indices to FP16 weight tiles via `index_select`, executing via standard `F.linear` / `cuBLAS`. This explicitly validates the zero-shot crystallisation and Iso-Memory *storage* bounds, but does not yet deliver SRAM-bound latency on standard GPUs. True hardware acceleration requires a native C/CUDA/Triton kernel (or dedicated NPU logic) to perform **matrix-free vector scaling**: SRAM lookup of codebook vectors by index, combined with continuous FP16/BF16 activations via scalar–vector multiply–accumulate — eliminating dense $\mathcal{O}(N^2)$ weight-matrix DRAM traffic entirely. This hardware-software isomorphism is discussed in Appendix B of the paper as an engineering target, not a result already achieved.
 
 ---
 
@@ -168,7 +186,7 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 pip install tiktoken lm_eval tqdm numpy
 # Optional: Triton (highly recommended — massively accelerates the Castor STE
 #   projection during training and avoids VRAM bottlenecks during the H24 snap;
-#   also speeds checkpoint packing)
+#   also speeds checkpoint packing and validate.py's decode pass)
 pip install triton
 ```
 
@@ -192,14 +210,26 @@ python evaluate.py pollux_10k.pt --batch-size 16
 python evaluate.py model.plx --limit 0.1
 ```
 
-### 4 — Pack a checkpoint
+### 4 — Check held-out validation loss
 
 ```bash
-# Pack the 10k structural convergence plateau checkpoint (recommended)
+# Cross-entropy on a reserved, disjoint FineWeb-Edu 10B split, at any checkpoint
+python validate.py checkpoints/pollux_step10000.pt --data data/fineweb_10b_val.bin
+
+# Sweep multiple checkpoints to reproduce the Fig. 1 train/val curve
+python validate.py checkpoints/pollux_step*.pt --data data/fineweb_10b_val.bin --csv val_curve.csv
+```
+
+`validate.py` reports the standard training-loss moving average alongside the held-out cross-entropy so train/val divergence (a basic memorization check) can be inspected directly; it does not run BLiMP/SciQ/HellaSwag/PIQA — use `evaluate.py` for those.
+
+### 5 — Pack a checkpoint
+
+```bash
+# Pack the 10k crystallisation peak checkpoint (recommended)
 python pack.py checkpoints/pollux_step10000.pt --output pollux_1152_10k.plx --device cuda
 ```
 
-### 5 — Minimal Python API
+### 6 — Minimal Python API
 
 ```python
 import torch
@@ -249,7 +279,7 @@ print(enc.decode(out[0].tolist()))
 
 ## Training Data
 
-To download and tokenize the dataset locally, simply run `python prepare_fineweb.py`. This script will stream the 10B token subset, tokenize it, and save the resulting `uint16` binary to `data/fineweb_10b.bin` for fast memmap loading during training.
+To download and tokenize the dataset locally, simply run `python prepare_fineweb.py`. This script will stream the 10B token subset, tokenize it, and save the resulting `uint16` binary to `data/fineweb_10b.bin` for fast memmap loading during training. It also writes a disjoint held-out split for use with `validate.py`.
 
 Requires `datasets`, `transformers`, `numpy`, and `tqdm` (in addition to the core training stack). The download is ~20 GB on disk once complete.
 
@@ -257,28 +287,32 @@ Requires `datasets`, `transformers`, `numpy`, and `tqdm` (in addition to the cor
 
 ## Training from Scratch
 
-> **Token Budget Note:** At sequence length 1024, batch size 8, and 32 grad-accum steps, 10,000 steps equal roughly 2.6 billion processed tokens. For larger configurations (e.g., Pollux-1920), training may be executed across multiple sequential resumed runs due to hardware interruptions; optimizer state is fully preserved at each resume point and loss trajectories are stitched by training step.
+> **Token Budget Note:** At sequence length 1024, batch size 8, and 32 grad-accum steps, 10,000 steps equal roughly 2.6 billion processed tokens. For larger configurations (e.g., Pollux-1920), training may be executed across multiple sequential resumed runs due to hardware interruptions; optimizer state (including the heat EMA, momentum/variance buffers, and step counter) is fully preserved at each resume point and loss trajectories are stitched by training step.
 
 ```bash
 # Prepare FineWeb-Edu 10B token shard (creates data/fineweb_10b.bin)
 python prepare_fineweb.py
 
 # Train Pollux-1152 (1152-dim, 18 layers, 48 heads — default pollux.py config)
+# Targets the 10k crystallisation-peak checkpoint on a single RTX 5090 / ~6 hours
 python train.py \
     --target-tokens 9_953_989_333 \
     --wandboff   # remove to enable W&B logging
+
+# Check held-out validation loss at any point during/after training
+python validate.py checkpoints/pollux_step10000.pt --data data/fineweb_10b_val.bin
 
 # After ~10k steps, pack the checkpoint
 python pack.py checkpoints/pollux_step10000.pt --output pollux_1152_10k.plx
 ```
 
-### Optimiser Calibration (Important)
+### Endogenous Kinetics Calibration (Important)
 
-The optimiser (`pollux_step`) has **no learning-rate schedule, no auxiliary weight decay, gradient clipping, or warmup** — but it does rely on exactly **one environmental boundary condition**: the dataset noise floor `H_floor`. (For a full mathematical derivation of how all other optimiser constants, such as the topological drag and Voronoi jitter floor, are derived strictly from the two $H_{24}$ axioms, please refer to Section 3.4 of the paper).
+The optimiser (`pollux_step`) has **no learning-rate schedule, no auxiliary weight decay, gradient clipping, or warmup** — but it does rely on exactly **one environmental boundary condition**: the dataset noise floor `H_floor`. (For the full mathematical derivation of how all other optimiser constants — such as the topological friction $C=\sqrt{2}$ and the Voronoi jitter floor $\gamma = G_{24}$ — are derived strictly from the two $\Lambda_{24}$ axioms, see Section 3.4 of the paper.)
 
-`H_floor` is an **empirical material property** of the training corpus — the irreducible Shannon entropy of its linguistic structure, including factual noise — not an architectural hyperparameter. For FineWeb-Edu 10B, `DATASET_NOISE_FLOOR = 3.2` in `pollux.py` is anchored at the cross-entropy convergence ceiling of an uncompressed FP16 continuous-weight baseline on the same corpus.
+`H_floor` is an **empirical property of the training corpus** — approximately the cross-entropy convergence ceiling of a capacity-matched continuous baseline trained on the same corpus — not an architectural hyperparameter, and it is used only as a normalization reference for the "heat" signal $H(t)$ (an information-theoretic analogy to simulated-annealing temperature, not a literal thermodynamic quantity — see Section 3.4.4 of the paper). For FineWeb-Edu 10B, `DATASET_NOISE_FLOOR = 3.2` in `pollux.py` is anchored at ≈3.2 nats, the reported convergence ceiling for a capacity-matched continuous baseline on this corpus.
 
-**If you train on a different corpus**, measure the FP16 continuous-weight convergence ceiling on your data, set `H_floor` to that value, and update `DATASET_NOISE_FLOOR` in `pollux.py` before launching `train.py`. A floor set too high underestimates corpus entropy; too low overstates it and distorts the heat normalisation.
+**If you train on a different corpus**, measure the continuous-weight convergence ceiling on your data (e.g. with `validate.py` against a short continuous-baseline run), set `H_floor` to that value, and update `DATASET_NOISE_FLOOR` in `pollux.py` before launching `train.py`. A floor set too high underestimates corpus entropy; too low overstates it and distorts the heat normalisation.
 
 ---
 
@@ -286,14 +320,15 @@ The optimiser (`pollux_step`) has **no learning-rate schedule, no auxiliary weig
 
 | Component | Class | Details |
 |---|---|---|
-| **Training layer** | `PolluxH24Linear` | Forward uses discrete materialised weights; `pollux_step` maintains continuous latents and re-quantizes once per step |
-| **Normalization** | `RMSNorm` | Continuous FP16 learnable gains; magnitude--structure decoupler for the residual stream |
+| **Training layer** | `PolluxH24Linear` | Forward uses discrete materialised weights; `pollux_step` maintains continuous shadow-weight latents and re-quantizes once per optimizer step |
+| **Normalization** | `RMSNorm` | Continuous FP16 learnable gains; magnitude–structure decoupler for the residual stream |
 | **Inference layer** | `PackedH24Linear` | Stores `uint8` 18-bit packed indices + `float16` one $\sigma_{\mathrm{rms}}$ per row; `materialize()` expands to FP16 via `codebook.index_select` |
-| **Embeddings** | `PackedInt8Embedding` | Per-row INT8 + FP16 scale (untied from LM head by physical necessity) |
-| **LM Head** | `PackedInt8Linear` | Per-row INT8 + FP16 scale (untied: high-precision logit resolution incompatible with H24 gradient geometry) |
-| **Optimizer** | `pollux_step` | Heat-modulated Adam with topological drag $1/C$, width stability $\eta_d$, geometric reference baseline $d^* = 1152$; Castor STE; no architectural hyperparameters (requires one corpus-specific `H_floor`) |
-| **Codebook** | `castor.py` | 196,561 entries (196,560 kissing + index-0 null attractor); ~9 MB FP16 |
+| **Embeddings** | `PackedInt8Embedding` | Per-row INT8 + FP16 scale (kept continuous/high-precision and untied from the LM head — see Section 3.1 of the paper) |
+| **LM Head** | `PackedInt8Linear` | Per-row INT8 + FP16 scale (untied: kept at higher precision to avoid large continuous logit updates overwhelming the lattice-filtered backbone gradients) |
+| **Optimizer** | `pollux_step` | Heat-modulated Adam-style update with topological friction $1/C$, width-inertia $\eta_d$, geometric reference width $d^*=1152$; straight-through estimator on the discrete projection; no architectural hyperparameters (requires one corpus-specific `H_floor`) |
+| **Codebook** | `castor.py` | 196,561 entries (196,560 kissing points + index-0 null/erasure attractor); ~9 MB FP16 |
 | **Bit-packing** | `castor.pack_indices` | Bijective 4 × 18-bit → 9-byte; reversible via `unpack_indices` |
+| **Validation** | `validate.py` | Held-out cross-entropy over a disjoint FineWeb-Edu 10B split, for any `.pt` checkpoint; used to produce the training/validation curve reported in Fig. 1 of the paper |
 
 ---
 
@@ -301,11 +336,17 @@ The optimiser (`pollux_step`) has **no learning-rate schedule, no auxiliary weig
 
 The source code is released under the **PolyForm Noncommercial License 1.0.0** for academic research, non-commercial experimentation, and scientific reproduction. A copy of the license is available at [https://polyformproject.org/licenses/noncommercial/1.0.0/](https://polyformproject.org/licenses/noncommercial/1.0.0/).
 
-The underlying algorithmic principles — specifically the native 24-dimensional Leech lattice straight-through estimation and the endogenous kinetic optimisation protocol — are the subject of a pending patent:
+A patent application covering specific **software and hardware-realisation aspects of the reference implementation** is pending:
 
 > **WIPO Application No. PCT/AT2026/060108 and Austrian Patent Application No. A65086/2026**
 
-Commercial utilization, deployment, or hardware integration of the proprietary Pollux architecture and its variants requires a commercial license from the patent holders. Contact: [lavicka@cantab.net](mailto:lavicka@cantab.net)
+This application concerns implementation-level engineering and software architecture only. It claims no exclusivity over the underlying mathematical framework, lattice geometry, or dynamical equations described in the paper, which remain fully open for independent scientific replication and use. Commercial utilization, deployment, or hardware integration of the proprietary Pollux reference implementation requires a commercial license from the patent holder. Contact: [lavicka@cantab.net](mailto:lavicka@cantab.net)
+
+---
+
+## Data & Code Availability
+
+Trained checkpoints (`pollux_1152_10k.plx`/`.pt`, `pollux_1920_10k.plx`/`.pt`) are archived on Zenodo: [10.5281/zenodo.22254791](https://doi.org/10.5281/zenodo.22254791). The actively maintained code repository is on GitHub: [https://github.com/alavicka/pollux](https://github.com/alavicka/pollux); a snapshot corresponding to the paper is additionally archived on the same Zenodo record.
 
 ---
 
@@ -314,12 +355,14 @@ Commercial utilization, deployment, or hardware integration of the proprietary P
 If you use Pollux in your research, please cite:
 
 ```bibtex
-@misc{lavicka2026pollux,
-  title   = {0.76 Bits Is All You Need: Vector Ternary Logic via Native H24 Leech-Lattice
-             Quantization in LLMs},
+@article{lavicka2026pollux,
+  title   = {Artificial Neural Networks as Discrete Complex Systems: Native Vector-Ternary
+             Training via the Leech Lattice $\Lambda_{24}$},
   author  = {Lavicka, Alexander},
+  journal = {Complex \& Intelligent Systems},
   year    = {2026},
-  note    = {Preprint. WIPO Patent Application No. PCT/AT2026/060108 and Austrian Patent Application No. A65086/2026},
-  url     = {https://papers.ssrn.com/abstract=6973978}
+  note    = {Accepted, author's accepted version. WIPO Patent Application No. PCT/AT2026/060108
+             and Austrian Patent Application No. A65086/2026},
+  url     = {https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6973978}
 }
 ```
